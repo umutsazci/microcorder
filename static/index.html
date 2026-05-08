@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8" />
+<title>Microsols — Premium AI Transcription</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.55); }
+    70%  { box-shadow: 0 0 0 22px rgba(239,68,68,0);  }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0);    }
+  }
+  .pulse-rec { animation: pulse-ring 1.4s ease-out infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    border: 3px solid rgba(99,102,241,0.2);
+    border-top-color: rgb(99,102,241);
+    border-radius: 9999px;
+    width: 22px; height: 22px;
+    animation: spin 0.8s linear infinite;
+  }
+  /* Speaker palette — 6 distinct hues, cycle for >6 speakers. */
+  .sp-0 { background: #6366f1; }
+  .sp-1 { background: #ec4899; }
+  .sp-2 { background: #10b981; }
+  .sp-3 { background: #f59e0b; }
+  .sp-4 { background: #06b6d4; }
+  .sp-5 { background: #8b5cf6; }
+</style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 antialiased">
+
+<!-- ============================ HEADER ============================ -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-white shadow-sm">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1v22"/><path d="M5 8a7 7 0 0114 0v8a7 7 0 01-14 0z" fill="currentColor" stroke="none" opacity=".15"/>
+          <rect x="9" y="3" width="6" height="12" rx="3"/>
+          <path d="M5 11a7 7 0 0014 0M12 18v4M8 22h8"/>
+        </svg>
+      </div>
+      <div class="leading-tight">
+        <div class="font-semibold text-slate-900">Microsols</div>
+        <div class="text-xs text-slate-500 -mt-0.5">Premium AI Transcription</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="credits-pill" title="Minutes of transcription remaining"
+            class="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="credits-text">— mins</span>
+      </span>
+      <a id="topup-btn" href="#pricing"
+         class="inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-1.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm hover:from-pink-600 hover:to-rose-600 transition">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Top Up Credits
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ MAIN ============================ -->
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+
+  <!-- INPUT CARD -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-12 text-center">
+    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+      Record. Transcribe. Identify speakers.
+    </h1>
+    <p class="mt-2 text-slate-500 max-w-xl mx-auto">
+      Tap the microphone, speak, then stop. WhisperX returns a clean transcript
+      with per-speaker labels — billed at 2 credits per minute (rounded up).
+    </p>
+
+    <!-- Yellow tip -->
+    <div class="mt-5 mx-auto max-w-xl bg-amber-50 border-l-4 border-amber-400 text-amber-900 text-sm rounded p-3 text-left">
+      💡 <strong>Heads-up:</strong> billing is by recording length, not speech.
+      Silence still counts. Hit start when you're ready and stop the moment
+      you finish.
+    </div>
+
+    <!-- Mic button -->
+    <div class="mt-10 flex flex-col items-center gap-4">
+      <button id="rec"
+              class="relative w-28 h-28 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center transition focus:outline-none focus:ring-4 focus:ring-indigo-200">
+        <svg id="mic-icon" class="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 11a7 7 0 0014 0M12 18v4M8 22h8"/>
+        </svg>
+        <svg id="stop-icon" class="hidden w-10 h-10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button>
+
+      <div id="timer" class="hidden text-3xl font-mono font-semibold tracking-wider text-rose-600">00:00</div>
+
+      <div id="hint" class="text-sm text-slate-500">Click to start recording</div>
+
+      <button id="stop-btn"
+              class="hidden inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        Stop & Transcribe
+      </button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading" class="hidden mt-8 inline-flex items-center gap-2 text-sm text-slate-600">
+      <div class="spinner"></div>
+      <span id="loading-text">Uploading & transcribing — this may take ~30s…</span>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-box" class="hidden mt-6 mx-auto max-w-xl bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-4 text-left">
+      <div class="font-semibold flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="error-title">Something went wrong</span>
+      </div>
+      <p id="error-detail" class="text-sm mt-1"></p>
+      <a id="error-buy" class="hidden mt-2 inline-block text-sm font-semibold underline" href="#" target="_blank" rel="noopener">Buy more credits →</a>
+    </div>
+  </section>
+
+  <!-- RESULTS CARD -->
+  <section id="results" class="hidden mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+    <header class="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Transcript</h2>
+        <p id="meta" class="text-xs text-slate-500 mt-0.5">—</p>
+      </div>
+      <button id="copy-btn"
+              class="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50 transition">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        <span id="copy-label">Copy Transcript</span>
+      </button>
+    </header>
+
+    <!-- Summary -->
+    <div id="summary-block" class="mt-5 hidden">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Summary</div>
+      <div id="summary-text" class="mt-1 text-slate-700 italic"></div>
+    </div>
+
+    <!-- Segments -->
+    <div id="segments" class="mt-6 space-y-4 leading-relaxed"></div>
+
+    <!-- Plain transcript fallback (no diarization) -->
+    <div id="plain-transcript" class="hidden mt-6 text-slate-800 whitespace-pre-wrap"></div>
+  </section>
+
+  <!-- ========================== PRICING ========================== -->
+  <section id="pricing" class="mt-12 scroll-mt-20">
+    <div class="text-center mb-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+        Simple, fair pricing
+      </h2>
+      <p class="mt-2 text-slate-500 max-w-xl mx-auto">
+        Pay-as-you-go credits. 1 minute of audio = 2 credits. No subscriptions,
+        no expiry on credits already in your account.
+      </p>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-6 md:items-stretch justify-center">
+
+      <!-- Starter -->
+      <div class="flex-1 max-w-md mx-auto md:mx-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-7 flex flex-col">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Entry level</div>
+        <div class="mt-1 text-2xl font-bold text-slate-900">Starter</div>
+        <div class="mt-4 flex items-baseline gap-1.5">
+          <span class="text-4xl font-extrabold text-slate-900">$4.99</span>
+          <span class="text-sm text-slate-500">one-time</span>
+        </div>
+        <ul class="mt-5 space-y-2.5 text-sm text-slate-700 flex-1">
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span><strong>30 minutes</strong> of transcription (60 credits)</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Speaker diarization on every clip</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Credits never expire</span>
+          </li>
+        </ul>
+        <a id="buy-starter" target="_blank" rel="noopener" href="#"
+           class="mt-6 inline-flex justify-center items-center px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition">
+          Buy Starter
+        </a>
+      </div>
+
+      <!-- Pro (highlighted) -->
+      <div class="relative flex-1 max-w-md mx-auto md:mx-0 bg-white rounded-2xl border-2 border-indigo-500 shadow-lg p-7 flex flex-col md:scale-[1.02]">
+        <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-xs font-bold tracking-wide shadow">
+          ⭐ MOST POPULAR
+        </div>
+        <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Best value</div>
+        <div class="mt-1 text-2xl font-bold text-slate-900">Pro</div>
+        <div class="mt-4 flex items-baseline gap-1.5">
+          <span class="text-4xl font-extrabold text-slate-900">$9.99</span>
+          <span class="text-sm text-slate-500">one-time</span>
+        </div>
+        <ul class="mt-5 space-y-2.5 text-sm text-slate-700 flex-1">
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span><strong>50 minutes</strong> of transcription (100 credits)</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Speaker diarization on every clip</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>~17% better $/minute vs Starter</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <svg class="w-5 h-5 mt-0.5 flex-none text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Credits never expire</span>
+          </li>
+        </ul>
+        <a id="buy-pro" target="_blank" rel="noopener" href="#"
+           class="mt-6 inline-flex justify-center items-center px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-pink-500 text-white text-sm font-semibold hover:from-indigo-700 hover:to-pink-600 transition shadow">
+          Buy Pro
+        </a>
+      </div>
+
+    </div>
+
+    <p class="mt-6 text-center text-xs text-slate-400">
+      Secure checkout via Lemon Squeezy. Test card <code class="bg-slate-100 px-1 rounded">4242 4242 4242 4242</code> works in test mode.
+    </p>
+  </section>
+</main>
+
+<!-- ============================ JS ============================ -->
+<script>
+const CREDITS_PER_MINUTE = 2;
+
+// ------------ DOM refs
+const recBtn      = document.getElementById('rec');
+const stopBtn     = document.getElementById('stop-btn');
+const micIcon     = document.getElementById('mic-icon');
+const stopIcon    = document.getElementById('stop-icon');
+const timerEl     = document.getElementById('timer');
+const hintEl      = document.getElementById('hint');
+const loadingEl   = document.getElementById('loading');
+const loadingText = document.getElementById('loading-text');
+const errorBox    = document.getElementById('error-box');
+const errorTitle  = document.getElementById('error-title');
+const errorDetail = document.getElementById('error-detail');
+const errorBuy    = document.getElementById('error-buy');
+const creditsPill = document.getElementById('credits-pill');
+const creditsText = document.getElementById('credits-text');
+const topupBtn    = document.getElementById('topup-btn');
+const resultsEl   = document.getElementById('results');
+const segmentsEl  = document.getElementById('segments');
+const summaryBlk  = document.getElementById('summary-block');
+const summaryTxt  = document.getElementById('summary-text');
+const plainTrEl   = document.getElementById('plain-transcript');
+const metaEl      = document.getElementById('meta');
+const copyBtn     = document.getElementById('copy-btn');
+const copyLabel   = document.getElementById('copy-label');
+
+// ------------ State
+let mediaRecorder = null;
+let chunks = [];
+let recStartTs = 0;
+let timerInterval = null;
+let lastResult = null;
+let checkoutUrl = '';
+
+// ------------ Utilities
+const pad = n => String(n).padStart(2, '0');
+const fmtMMSS = sec => `${pad(Math.floor(sec / 60))}:${pad(Math.floor(sec % 60))}`;
+const speakerIndex = label => {
+  if (!label) return 0;
+  const m = String(label).match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+};
+const speakerName = label => `Speaker ${speakerIndex(label) + 1}`;
+
+function showError(title, detail, isPaymentRequired) {
+  errorBox.classList.remove('hidden');
+  errorTitle.textContent = title;
+  errorDetail.textContent = detail;
+  if (isPaymentRequired && checkoutUrl) {
+    errorBuy.href = checkoutUrl;
+    errorBuy.classList.remove('hidden');
+  } else {
+    errorBuy.classList.add('hidden');
+  }
+}
+function hideError() { errorBox.classList.add('hidden'); }
+
+function setCredits(credits) {
+  creditsPill.classList.remove('hidden');
+  if (typeof credits !== 'number') {
+    creditsText.textContent = '— mins';
+    return;
+  }
+  const mins = Math.floor(credits / CREDITS_PER_MINUTE);
+  creditsText.textContent = `${mins} min${mins === 1 ? '' : 's'} (${credits} credits)`;
+  creditsPill.classList.toggle('bg-rose-50', credits < CREDITS_PER_MINUTE);
+  creditsPill.classList.toggle('text-rose-700', credits < CREDITS_PER_MINUTE);
+  creditsPill.classList.toggle('border-rose-200', credits < CREDITS_PER_MINUTE);
+}
+
+// ------------ Bootstrap balance + checkout URL
+async function loadMe() {
+  try {
+    const r = await fetch('/api/me');
+    if (!r.ok) return;
+    const data = await r.json();
+    setCredits(data.credits);
+    // Pro tier checkout (used for the 402 "Buy more credits" CTA)
+    if (data.checkout_url) checkoutUrl = data.checkout_url;
+    // Wire pricing-card buttons
+    const pricing = data.pricing || {};
+    const buyStarter = document.getElementById('buy-starter');
+    const buyPro     = document.getElementById('buy-pro');
+    if (buyStarter && pricing.starter && pricing.starter.checkout_url) {
+      buyStarter.href = pricing.starter.checkout_url;
+    } else if (buyStarter) {
+      buyStarter.classList.add('opacity-50', 'pointer-events-none');
+      buyStarter.textContent = 'Unavailable';
+    }
+    if (buyPro && pricing.pro && pricing.pro.checkout_url) {
+      buyPro.href = pricing.pro.checkout_url;
+    } else if (buyPro) {
+      buyPro.classList.add('opacity-50', 'pointer-events-none');
+      buyPro.textContent = 'Unavailable';
+    }
+  } catch {}
+}
+loadMe();
+
+// ------------ Recording controls
+function enterRecordingUI() {
+  micIcon.classList.add('hidden');
+  stopIcon.classList.remove('hidden');
+  recBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+  recBtn.classList.add('bg-rose-600', 'hover:bg-rose-700', 'pulse-rec');
+  timerEl.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
+  hintEl.textContent = 'Recording… speak clearly';
+}
+function exitRecordingUI() {
+  stopIcon.classList.add('hidden');
+  micIcon.classList.remove('hidden');
+  recBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+  recBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'pulse-rec');
+  timerEl.classList.add('hidden');
+  stopBtn.classList.add('hidden');
+  hintEl.textContent = 'Click to start recording';
+}
+function startTimer() {
+  recStartTs = Date.now();
+  timerEl.textContent = '00:00';
+  timerInterval = setInterval(() => {
+    const sec = (Date.now() - recStartTs) / 1000;
+    timerEl.textContent = fmtMMSS(sec);
+  }, 200);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+async function startRecording() {
+  hideError();
+  resultsEl.classList.add('hidden');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    showError('Microphone blocked',
+      'Allow microphone access in your browser, then try again.');
+    return;
+  }
+  mediaRecorder = new MediaRecorder(stream);
+  chunks = [];
+  mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());
+    handleStop();
+  };
+  mediaRecorder.start();
+  enterRecordingUI();
+  startTimer();
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+}
+
+async function handleStop() {
+  stopTimer();
+  exitRecordingUI();
+  const elapsedSec = (Date.now() - recStartTs) / 1000;
+  const mins = Math.max(1, Math.ceil(elapsedSec / 60));
+  loadingText.textContent =
+    `Uploading & transcribing ~${fmtMMSS(elapsedSec)} of audio (≈ ${mins * CREDITS_PER_MINUTE} credits)…`;
+  loadingEl.classList.remove('hidden');
+
+  const blob = new Blob(chunks, { type: 'audio/webm' });
+  const fd = new FormData();
+  fd.append('file', blob, 'recording.webm');
+
+  let res, data;
+  try {
+    res = await fetch('/api/record', { method: 'POST', body: fd });
+  } catch (e) {
+    loadingEl.classList.add('hidden');
+    showError('Network error', String(e));
+    return;
+  }
+  loadingEl.classList.add('hidden');
+
+  if (res.status === 402) {
+    setCredits(0);
+    try { data = await res.json(); } catch { data = {}; }
+    showError('Out of credits', data.detail || 'Top up to keep transcribing.', true);
+    return;
+  }
+  if (!res.ok) {
+    try { data = await res.json(); } catch { data = {}; }
+    showError(`Error ${res.status}`, data.detail || res.statusText);
+    return;
+  }
+
+  data = await res.json();
+  lastResult = data;
+  if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining);
+  renderResult(data);
+}
+
+// ------------ Render
+function renderResult(data) {
+  resultsEl.classList.remove('hidden');
+
+  // Meta line
+  const parts = [];
+  if (data.minutes != null) parts.push(`${data.minutes} min${data.minutes === 1 ? '' : 's'} of audio`);
+  if (data.credits_charged != null) parts.push(`${data.credits_charged} credits charged`);
+  if (data.num_speakers) parts.push(`${data.num_speakers} speaker${data.num_speakers === 1 ? '' : 's'} detected`);
+  metaEl.textContent = parts.join(' · ') || '—';
+
+  // Summary
+  if (data.summary && data.summary.trim()) {
+    summaryBlk.classList.remove('hidden');
+    summaryTxt.textContent = data.summary;
+  } else {
+    summaryBlk.classList.add('hidden');
+  }
+
+  // Segments
+  segmentsEl.innerHTML = '';
+  plainTrEl.classList.add('hidden');
+
+  const segs = Array.isArray(data.segments) ? data.segments : [];
+  if (segs.length) {
+    for (const s of segs) {
+      if (!s.text || !s.text.trim()) continue;
+      const idx = speakerIndex(s.speaker);
+      const colorCls = `sp-${idx % 6}`;
+      const row = document.createElement('div');
+      row.className = 'flex gap-3';
+      row.innerHTML = `
+        <div class="${colorCls} flex-none w-9 h-9 rounded-full text-white font-semibold flex items-center justify-center text-sm shadow-sm">
+          ${idx + 1}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-2">
+            <span class="font-semibold text-slate-900">${speakerName(s.speaker)}</span>
+            <span class="text-xs text-slate-400 font-mono">${fmtMMSS(s.start || 0)} – ${fmtMMSS(s.end || 0)}</span>
+          </div>
+          <div class="text-slate-800 mt-0.5"></div>
+        </div>`;
+      row.querySelector('div.text-slate-800').textContent = s.text;
+      segmentsEl.appendChild(row);
+    }
+  } else if (data.transcript && data.transcript.trim()) {
+    plainTrEl.classList.remove('hidden');
+    plainTrEl.textContent = data.transcript;
+  } else {
+    plainTrEl.classList.remove('hidden');
+    plainTrEl.textContent = '(No speech detected.)';
+  }
+
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ------------ Copy
+function copyTranscript() {
+  if (!lastResult) return;
+  let text;
+  if (Array.isArray(lastResult.segments) && lastResult.segments.length) {
+    text = lastResult.segments
+      .filter(s => s.text && s.text.trim())
+      .map(s => `${speakerName(s.speaker)} [${fmtMMSS(s.start || 0)}]: ${s.text.trim()}`)
+      .join('\n');
+  } else {
+    text = lastResult.transcript || '';
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    copyLabel.textContent = 'Copied!';
+    setTimeout(() => (copyLabel.textContent = 'Copy Transcript'), 1400);
+  });
+}
+
+// ------------ Bind
+recBtn.addEventListener('click', () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') stopRecording();
+  else startRecording();
+});
+stopBtn.addEventListener('click', stopRecording);
+copyBtn.addEventListener('click', copyTranscript);
+</script>
+</body>
+</html>
