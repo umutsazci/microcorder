@@ -237,6 +237,12 @@
 <script>
 const CREDITS_PER_MINUTE = 2;
 
+// API base — when served from GitHub Pages we must call the Modal backend
+// cross-origin; when served from Modal or localhost, relative paths work.
+const API_BASE = (location.host.includes('github.io'))
+  ? 'https://umutsazc9--microcorder-backend-fastapi-app.modal.run'
+  : '';
+
 // ------------ DOM refs
 const recBtn      = document.getElementById('rec');
 const stopBtn     = document.getElementById('stop-btn');
@@ -309,7 +315,7 @@ function setCredits(credits) {
 // ------------ Bootstrap balance + checkout URL
 async function loadMe() {
   try {
-    const r = await fetch('/api/me');
+    const r = await fetch(API_BASE + '/api/me');
     if (!r.ok) return;
     const data = await r.json();
     setCredits(data.credits);
@@ -411,7 +417,7 @@ async function handleStop() {
 
   let res, data;
   try {
-    res = await fetch('/api/record', { method: 'POST', body: fd });
+    res = await fetch(API_BASE + '/api/record', { method: 'POST', body: fd });
   } catch (e) {
     loadingEl.classList.add('hidden');
     showError('Network error', String(e));

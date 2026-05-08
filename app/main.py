@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,20 @@ from app.billing import (
 
 
 app = FastAPI(title="AI SaaS")
+
+# CORS — frontend on GitHub Pages calls the Modal backend cross-origin.
+# Allow the Pages origin plus localhost for dev. No cookies → credentials off.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://umutsazci.github.io",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Repo root — index.html lives here so GitHub Pages can serve it directly.
 REPO_ROOT = Path(__file__).resolve().parent.parent
