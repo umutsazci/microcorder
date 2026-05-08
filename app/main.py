@@ -273,9 +273,12 @@ async def record(
 
 
 @app.get("/api/status/{task_id}")
-def status(task_id: int, db: Session = Depends(get_db)):
+def status(task_id: int, request: Request, db: Session = Depends(get_db)):
+    # Auth + ownership: only the user who created the task can read it.
+    user = _resolve_user_from_request(db, request)
     task = db.get(Task, task_id)
-    if task is None:
+    if task is None or task.user_id != user.id:
+        # Same 404 for non-existent and non-owned tasks — don't leak existence.
         raise HTTPException(status_code=404, detail="task not found")
     return {
         "task_id": task.id,
