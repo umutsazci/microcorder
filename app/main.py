@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -56,7 +56,33 @@ def get_db():
         db.close()
 
 
-CREDITS_PER_MINUTE = 2  # Premium WhisperX diarization rate
+CREDITS_PER_MINUTE = 2          # Premium WhisperX diarization rate
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB hard cap on /api/record uploads
+
+
+def _resolve_user_from_request(db: Session, request: Request) -> User:
+    """Identify the caller from the X-User-Email header.
+
+    No real auth — the header value is a per-browser anonymous ID stored in
+    localStorage (e.g. `anon_<uuid>@microcorder.local`). Auto-provisions a new
+    user with **0 credits** on first sight; visitors must purchase credits to
+    use /api/record. Replaces the previous shared demo-bootstrap behaviour.
+    """
+    ident = (
+        request.headers.get("X-User-Email")
+        or request.headers.get("x-user-email")
+        or ""
+    ).strip()
+    if not ident or "@" not in ident or len(ident) > 320:
+        raise HTTPException(
+            status_code=401,
+            detail="missing or invalid X-User-Email header",
+        )
+    user = crud.get_user_by_email(db, ident)
+    if user is None:
+        user = crud.create_user(db, ident, "anonymous", credits=0)
+        db.commit()
+    return user
 
 
 def measure_audio_minutes(path: str) -> int:
@@ -73,17 +99,6 @@ def measure_audio_minutes(path: str) -> int:
     return max(1, math.ceil(seconds / 60.0))
 
 
-def _ensure_demo_user(db: Session) -> User:
-    user = crud.get_user_by_email(db, os.environ.get("DEMO_USER_EMAIL", "demo@example.com"))
-    if user is None:
-        # Bootstrap demo user with a small credit grant so /api/record works
-        # before any webhook arrives. Real users start at 0 and top up via
-        # Lemon Squeezy.
-        user = crud.create_user(db, os.environ.get("DEMO_USER_EMAIL", "demo@example.com"), "demo", credits=5)
-        db.commit()
-    return user
-
-
 @app.get("/api/health")
 def health():
     return {"service": "ai-saas", "ok": True}
@@ -98,12 +113,14 @@ def root():
 
 
 @app.get("/api/me")
-def me(db: Session = Depends(get_db)):
-    """Current user's credit balance + checkout URL for top-ups."""
-    user = _ensure_demo_user(db)
-    db.refresh(user)
+def me(request: Request, db: Session = Depends(get_db)):
+    """Current caller's credit balance + checkout URL for top-ups.
+
+    Identity from `X-User-Email` header — auto-provisions 0-credit users.
+    Email is intentionally NOT returned (privacy: clients already know it).
+    """
+    user = _resolve_user_from_request(db, request)
     return {
-        "email": user.email,
         "credits": user.credits,
         # `checkout_url` is the Pro tier (kept for backward compat with older
         # clients that only know one URL).
@@ -130,11 +147,15 @@ def me(db: Session = Depends(get_db)):
 # ----------------------------------------------------------- AI endpoint ----
 @app.post("/api/record")
 async def record(
+    request: Request,
     file: UploadFile = File(...),
-    email: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     """Premium WhisperX pipeline billed per audio-minute.
+
+    Identity is derived from the `X-User-Email` header — anonymous browser ID
+    stored client-side. Server refuses arbitrary emails as form params (the
+    previous behaviour let any caller spend any user's credits).
 
     Strict order:
       1. Save the upload to a temp file.
@@ -145,17 +166,19 @@ async def record(
       6. Delete temp file.
       7. Return transcript + speaker segments + balance.
     """
+    # Cheap pre-check: refuse oversize uploads before reading them all into
+    # memory. Real check below covers tampered Content-Length.
+    content_len = int(request.headers.get("content-length") or 0)
+    if content_len and content_len > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="audio file too large (max 25 MB)")
+
     blob = await file.read()
     if not blob:
         raise HTTPException(status_code=400, detail="empty audio blob")
+    if len(blob) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="audio file too large (max 25 MB)")
 
-    # Resolve user (provided email or demo fallback for the unauth'd UI)
-    if email:
-        user = crud.get_user_by_email(db, email)
-        if user is None:
-            raise HTTPException(status_code=404, detail=f"unknown user {email}")
-    else:
-        user = _ensure_demo_user(db)
+    user = _resolve_user_from_request(db, request)
 
     # Step 1: persist to a temp file. Suffix preserves the container hint
     # (.webm/.wav/...) so ffmpeg/whisperx auto-detect format.

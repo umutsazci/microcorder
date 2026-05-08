@@ -245,6 +245,21 @@ const API_BASE = (location.host.includes('github.io'))
   ? 'https://umutsazc9--microcorder-backend-fastapi-app.modal.run'
   : '';
 
+// Anonymous per-browser identity. Stored in localStorage so the same browser
+// keeps the same credit balance across visits. New visitors start at 0.
+function _ensureUserId() {
+  let id = localStorage.getItem('mc_uid');
+  if (!id) {
+    const rand = (crypto.randomUUID && crypto.randomUUID()) ||
+                 (Math.random().toString(36).slice(2) + Date.now().toString(36));
+    id = 'anon_' + rand + '@microcorder.local';
+    localStorage.setItem('mc_uid', id);
+  }
+  return id;
+}
+const USER_ID = _ensureUserId();
+const AUTH_HEADERS = { 'X-User-Email': USER_ID };
+
 // ------------ DOM refs
 const recBtn      = document.getElementById('rec');
 const stopBtn     = document.getElementById('stop-btn');
@@ -315,30 +330,28 @@ function setCredits(credits) {
 }
 
 // ------------ Bootstrap balance + checkout URL
+function _withUserId(rawUrl) {
+  // Append checkout[custom][user_id]=<USER_ID> so the LS webhook routes
+  // credits back to this browser's anon account, not whatever email the
+  // shopper types at the LS checkout form.
+  if (!rawUrl || rawUrl === '#') return rawUrl;
+  const u = new URL(rawUrl);
+  u.searchParams.set('checkout[custom][user_id]', USER_ID);
+  return u.toString();
+}
+
 async function loadMe() {
+  // Decorate buy-button hrefs immediately (don't wait for /api/me)
+  for (const id of ['buy-starter', 'buy-pro']) {
+    const el = document.getElementById(id);
+    if (el) el.href = _withUserId(el.href);
+  }
   try {
-    const r = await fetch(API_BASE + '/api/me');
+    const r = await fetch(API_BASE + '/api/me', { headers: AUTH_HEADERS });
     if (!r.ok) return;
     const data = await r.json();
     setCredits(data.credits);
-    // Pro tier checkout (used for the 402 "Buy more credits" CTA)
-    if (data.checkout_url) checkoutUrl = data.checkout_url;
-    // Wire pricing-card buttons
-    const pricing = data.pricing || {};
-    const buyStarter = document.getElementById('buy-starter');
-    const buyPro     = document.getElementById('buy-pro');
-    if (buyStarter && pricing.starter && pricing.starter.checkout_url) {
-      buyStarter.href = pricing.starter.checkout_url;
-    } else if (buyStarter) {
-      buyStarter.classList.add('opacity-50', 'pointer-events-none');
-      buyStarter.textContent = 'Unavailable';
-    }
-    if (buyPro && pricing.pro && pricing.pro.checkout_url) {
-      buyPro.href = pricing.pro.checkout_url;
-    } else if (buyPro) {
-      buyPro.classList.add('opacity-50', 'pointer-events-none');
-      buyPro.textContent = 'Unavailable';
-    }
+    if (data.checkout_url) checkoutUrl = _withUserId(data.checkout_url);
   } catch {}
 }
 loadMe();
@@ -419,7 +432,9 @@ async function handleStop() {
 
   let res, data;
   try {
-    res = await fetch(API_BASE + '/api/record', { method: 'POST', body: fd });
+    res = await fetch(API_BASE + '/api/record', {
+      method: 'POST', body: fd, headers: AUTH_HEADERS,
+    });
   } catch (e) {
     loadingEl.classList.add('hidden');
     showError('Network error', String(e));
