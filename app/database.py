@@ -1,15 +1,22 @@
+import os
 from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DEFAULT_DB_URL = "sqlite:///./app.db"
+# Honor DATABASE_URL from env (Neon, Render, etc.); fall back to local SQLite
+# so contributors and tests work without setup.
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./app.db"
 
 Base = declarative_base()
 
 
-def make_engine(url: str = DEFAULT_DB_URL, **kwargs):
+def make_engine(url: str = DATABASE_URL, **kwargs):
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    engine = create_engine(url, connect_args=connect_args, future=True, **kwargs)
+    # pool_pre_ping=True validates each pooled connection before use — needed
+    # for Neon/serverless Postgres which auto-suspends idle compute.
+    engine = create_engine(
+        url, connect_args=connect_args, future=True, pool_pre_ping=True, **kwargs,
+    )
 
     if url.startswith("sqlite"):
         @event.listens_for(engine, "connect")
