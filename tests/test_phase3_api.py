@@ -11,7 +11,7 @@ import app.database as db_module
 import app.main as main_module
 
 
-TEST_USER = "test@example.com"
+TEST_USER = "00000000-0000-4000-8000-000000000001"
 
 
 @pytest.fixture()
@@ -28,7 +28,7 @@ def client(tmp_path, monkeypatch):
 
     with TestClient(main_module.app) as c:
         # Header-based identity is required by the auth-less identity scheme.
-        c.headers["X-User-Email"] = TEST_USER
+        c.headers["X-User-Id"] = TEST_USER
         yield c
 
     eng.dispose()
@@ -102,7 +102,7 @@ def test_record_402_when_below_per_minute_threshold(client):
 
 
 def test_record_rejects_missing_auth_header(tmp_path, monkeypatch):
-    """No X-User-Email -> 401 (security: no shared default account)."""
+    """No X-User-Id -> 401 (security: no shared default account)."""
     eng = make_engine(f"sqlite:///{tmp_path/'test.db'}")
     Base.metadata.create_all(bind=eng)
     factory = make_session_factory(eng)
@@ -112,7 +112,7 @@ def test_record_rejects_missing_auth_header(tmp_path, monkeypatch):
     monkeypatch.setattr(main_module, "measure_audio_minutes", lambda path: 1)
 
     with TestClient(main_module.app) as c:
-        # NB: no X-User-Email header set
+        # NB: no X-User-Id header set
         r = c.post(
             "/api/record",
             files={"file": ("a.wav", io.BytesIO(b"abc"), "audio/wav")},

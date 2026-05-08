@@ -1,6 +1,7 @@
 import math
 import os
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,26 +62,28 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB hard cap on /api/record uploads
 
 
 def _resolve_user_from_request(db: Session, request: Request) -> User:
-    """Identify the caller from the X-User-Email header.
+    """Identify the caller from the X-User-Id header (UUID4 string).
 
-    No real auth — the header value is a per-browser anonymous ID stored in
-    localStorage (e.g. `anon_<uuid>@microcorder.local`). Auto-provisions a new
-    user with **0 credits** on first sight; visitors must purchase credits to
-    use /api/record. Replaces the previous shared demo-bootstrap behaviour.
+    No real auth — the header is a per-browser UUID stored in localStorage
+    under `microcorder_user_id`. Auto-provisions a new user with **0 credits**
+    on first sight; visitors must purchase credits to use /api/record.
+    The UUID is stored in the legacy `User.email` column (which is just the
+    unique identifier for now).
     """
-    ident = (
-        request.headers.get("X-User-Email")
-        or request.headers.get("x-user-email")
+    raw = (
+        request.headers.get("X-User-Id")
+        or request.headers.get("x-user-id")
         or ""
     ).strip()
-    if not ident or "@" not in ident or len(ident) > 320:
-        raise HTTPException(
-            status_code=401,
-            detail="missing or invalid X-User-Email header",
-        )
-    user = crud.get_user_by_email(db, ident)
+    if not raw:
+        raise HTTPException(status_code=401, detail="missing X-User-Id header")
+    try:
+        uid = str(uuid.UUID(raw))  # validate + canonicalise (lowercase)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="invalid X-User-Id (must be UUID)")
+    user = crud.get_user_by_email(db, uid)
     if user is None:
-        user = crud.create_user(db, ident, "anonymous", credits=0)
+        user = crud.create_user(db, uid, "anonymous", credits=0)
         db.commit()
     return user
 

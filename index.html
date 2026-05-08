@@ -245,20 +245,23 @@ const API_BASE = (location.host.includes('github.io'))
   ? 'https://umutsazc9--microcorder-backend-fastapi-app.modal.run'
   : '';
 
-// Anonymous per-browser identity. Stored in localStorage so the same browser
-// keeps the same credit balance across visits. New visitors start at 0.
+// Anonymous per-browser identity (UUID4). Stored in localStorage under
+// `microcorder_user_id` so the same browser keeps the same credit balance
+// across visits. New visitors start at 0 credits.
 function _ensureUserId() {
-  let id = localStorage.getItem('mc_uid');
+  let id = localStorage.getItem('microcorder_user_id');
   if (!id) {
-    const rand = (crypto.randomUUID && crypto.randomUUID()) ||
-                 (Math.random().toString(36).slice(2) + Date.now().toString(36));
-    id = 'anon_' + rand + '@microcorder.local';
-    localStorage.setItem('mc_uid', id);
+    id = (crypto.randomUUID && crypto.randomUUID())
+       || ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          }));
+    localStorage.setItem('microcorder_user_id', id);
   }
   return id;
 }
 const USER_ID = _ensureUserId();
-const AUTH_HEADERS = { 'X-User-Email': USER_ID };
+const AUTH_HEADERS = { 'X-User-Id': USER_ID };
 
 // ------------ DOM refs
 const recBtn      = document.getElementById('rec');
