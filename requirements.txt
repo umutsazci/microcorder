@@ -12,6 +12,8 @@ uvicorn[standard]>=0.30
 # For real inference (not required for MOCK_AI=True tests):
 whisperx>=3.8
 imageio-ffmpeg>=0.4
+pydub>=0.25
+audioop-lts; python_version >= "3.13"
 # whisperx pulls in: faster-whisper, torch, transformers, pyannote.audio, etc.
 # Speaker diarization requires HF_TOKEN in .env after accepting model terms at:
 #   https://huggingface.co/pyannote/speaker-diarization-3.1

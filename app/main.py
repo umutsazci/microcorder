@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, init_db
@@ -23,10 +23,9 @@ from app.billing import (
 
 app = FastAPI(title="AI SaaS")
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True),
-              name="static")
+# Repo root — index.html lives here so GitHub Pages can serve it directly.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+INDEX_FILE = REPO_ROOT / "index.html"
 
 
 @app.on_event("startup")
@@ -70,9 +69,17 @@ def _ensure_demo_user(db: Session) -> User:
     return user
 
 
-@app.get("/")
-def root():
+@app.get("/api/health")
+def health():
     return {"service": "ai-saas", "ok": True}
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    """Serve the SPA at root — same path GitHub Pages serves it from."""
+    if INDEX_FILE.exists():
+        return FileResponse(str(INDEX_FILE), media_type="text/html")
+    raise HTTPException(status_code=404, detail="index.html missing")
 
 
 @app.get("/api/me")

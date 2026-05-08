@@ -30,10 +30,17 @@ def client(tmp_path, monkeypatch):
     eng.dispose()
 
 
-def test_root_ok(client):
-    r = client.get("/")
+def test_health_ok(client):
+    r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["ok"] is True
+
+
+def test_root_serves_spa(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "MediaRecorder" in r.text
 
 
 def test_record_runs_pipeline_and_deducts_credits(client):

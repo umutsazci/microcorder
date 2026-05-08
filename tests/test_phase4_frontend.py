@@ -22,31 +22,26 @@ def client(tmp_path, monkeypatch):
     eng.dispose()
 
 
-def test_static_index_served(client):
-    r = client.get("/static/index.html")
+def test_root_serves_index_html(client):
+    """Frontend now lives at repo root (so GitHub Pages can serve it)."""
+    r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
     body = r.text
     assert "<html" in body.lower()
     assert "MediaRecorder" in body
     assert "/api/record" in body
-    assert "credits_remaining" in body  # frontend renders credits from response
+    assert "credits_remaining" in body
 
 
-def test_static_index_has_no_language_dropdown(client):
-    """Phase 4 rollback — UI is English-only, no language selector."""
-    body = client.get("/static/index.html").text
+def test_index_has_no_language_dropdown(client):
+    body = client.get("/").text
     assert 'id="lang"' not in body
     assert "<select" not in body
     assert "fd.append('language'" not in body
 
 
-def test_static_root_html_index_served(client):
-    r = client.get("/static/")
-    assert r.status_code == 200
-    assert "MediaRecorder" in r.text
-
-
-def test_static_missing_file_404(client):
-    r = client.get("/static/does-not-exist.js")
+def test_old_static_path_404(client):
+    """Old `/static/...` mount has been removed."""
+    r = client.get("/static/index.html")
     assert r.status_code == 404
