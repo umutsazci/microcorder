@@ -47,6 +47,10 @@ image = (
         "python-dotenv",
         "imageio-ffmpeg",
     )
+    # pyannote.audio 4.x calls nltk.tokenize → needs the punkt_tab corpus.
+    .run_commands(
+        "python -m nltk.downloader -d /root/nltk_data punkt punkt_tab"
+    )
     # Snapshot the local repo into the image so /root contains app/, index.html,
     # scripts/, etc. Excludes secrets, caches, and dev artifacts.
     .add_local_dir(
