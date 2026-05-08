@@ -1,5 +1,9 @@
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
+passlib[bcrypt]>=1.7.4
+bcrypt<5,>=4.0  # passlib 1.7.4 isn't compatible with bcrypt 5.x
+pyjwt>=2.8
+httpx<0.28
 pytest>=8.0
 pytest-cov>=4.0
 fastapi>=0.110
